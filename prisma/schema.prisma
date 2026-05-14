@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id           String         @id @default(cuid())
+  email        String?        @unique
+  phone        String?        @unique
+  name         String
+  password     String?
+  avatar       String?
+  createdAt    DateTime       @default(now())
+  familyAccess FamilyAccess[]
+}
+
+model Family {
+  id          String        @id @default(cuid())
+  surname     String
+  tang        String
+  region      String?
+  era         String?
+  motto       String?
+  zibei       String?
+  access      String        @default("semi")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  members     Person[]
+  events      FamilyEvent[]
+  accessList  FamilyAccess[]
+  invitations Invitation[]
+}
+
+model FamilyAccess {
+  id       String @id @default(cuid())
+  userId   String
+  familyId String
+  role     String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family   Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, familyId])
+}
+
+model Person {
+  id          String         @id @default(cuid())
+  familyId    String
+  name        String
+  zi          String?
+  hao         String?
+  sex         String         @default("M")
+  gen         Int
+  branch      String?
+  birth       String?
+  birthLunar  String?
+  death       String?
+  deathLunar  String?
+  lifespan    String?
+  title       String?
+  bio         String?
+  burial      String?
+  address     String?
+  phone       String?
+  photo       String?
+  deceased    Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  family      Family         @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  parentRels  Relationship[] @relation("child")
+  childRels   Relationship[] @relation("parent")
+  spouseRels1 Spouse[]       @relation("spouse1")
+  spouseRels2 Spouse[]       @relation("spouse2")
+}
+
+model Relationship {
+  id       String @id @default(cuid())
+  parentId String
+  childId  String
+  parent   Person @relation("parent", fields: [parentId], references: [id], onDelete: Cascade)
+  child    Person @relation("child", fields: [childId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, childId])
+}
+
+model Spouse {
+  id    String  @id @default(cuid())
+  p1Id  String
+  p2Id  String
+  label String?
+  p1    Person  @relation("spouse1", fields: [p1Id], references: [id], onDelete: Cascade)
+  p2    Person  @relation("spouse2", fields: [p2Id], references: [id], onDelete: Cascade)
+
+  @@unique([p1Id, p2Id])
+}
+
+model FamilyEvent {
+  id       String  @id @default(cuid())
+  familyId String
+  year     Int?
+  yearText String?
+  title    String
+  desc     String?
+  actors   String?
+  major    Boolean @default(false)
+  family   Family  @relation(fields: [familyId], references: [id], onDelete: Cascade)
+}
+
+model Invitation {
+  id        String    @id @default(cuid())
+  familyId  String
+  email     String?
+  phone     String?
+  role      String    @default("editor")
+  scope     String    @default("all")
+  token     String    @unique
+  message   String?
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  family    Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+}
