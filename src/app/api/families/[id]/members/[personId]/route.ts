@@ -22,6 +22,8 @@ const UpdateSchema = z.object({
   address: z.string().optional(),
   phone: z.string().optional(),
   deceased: z.boolean().optional(),
+  lat: z.number().nullable().optional(),
+  lng: z.number().nullable().optional(),
 })
 
 type Ctx = { params: Promise<{ id: string; personId: string }> }

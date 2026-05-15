@@ -66,6 +66,8 @@ model Person {
   address     String?
   phone       String?
   photo       String?
+  lat         Float?
+  lng         Float?
   deceased    Boolean        @default(false)
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
