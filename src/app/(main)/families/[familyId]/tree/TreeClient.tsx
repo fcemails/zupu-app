@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Role } from '@/lib/permissions'
+import { usePins } from '@/hooks/usePins'
 
 /* ── constants & helpers ─────────────────────────────────── */
 
@@ -428,7 +429,80 @@ type EditForm = {
   name: string; zi: string; hao: string; sex: string; gen: string; branch: string;
   birth: string; birthLunar: string; death: string; deathLunar: string;
   lifespan: string; title: string; bio: string;
-  burial: string; address: string; phone: string; deceased: boolean;
+  burial: string; address: string; phone: string; photo: string; deceased: boolean;
+}
+
+function PhotoUpload({ familyId, value, onChange }: { familyId: string; value: string; onChange: (url: string) => void }) {
+  const [uploading, setUploading] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  async function handleFile(file: File) {
+    setUploading(true)
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('familyId', familyId)
+    const res = await fetch('/api/upload', { method: 'POST', body: fd })
+    setUploading(false)
+    const body = await res.json().catch(() => null)
+    console.debug('upload response', res.status, body)
+    if (res.ok && body) {
+      const { url } = body
+      onChange(url)
+    } else {
+      console.error('Upload failed', res.status, body)
+      alert((body && (body.error?.message || body.message)) || '上传失败')
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div
+        style={{
+          width: 72, height: 90, borderRadius: 4, overflow: 'hidden', flexShrink: 0,
+          border: '1px dashed var(--line-strong)', background: 'var(--line-2)',
+          display: 'grid', placeItems: 'center', cursor: 'pointer', position: 'relative',
+        }}
+        onClick={() => inputRef.current?.click()}
+      >
+        {value ? (
+          <img src={value} alt="画像" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <span style={{ fontSize: 11, color: 'var(--ink-4)', textAlign: 'center', lineHeight: 1.4, padding: 6 }}>
+            {uploading ? '上传中…' : '点击\n上传'}
+          </span>
+        )}
+      </div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <button
+          type="button"
+          className="btn ghost sm"
+          disabled={uploading}
+          onClick={() => inputRef.current?.click()}
+        >
+          {uploading ? '上传中…' : value ? '更换画像' : '选择图片'}
+        </button>
+        {value && (
+          <button
+            type="button"
+            className="btn ghost sm"
+            style={{ color: 'var(--ink-4)' }}
+            onClick={() => onChange('')}
+          >
+            移除画像
+          </button>
+        )}
+        <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>JPG / PNG / WebP，4 MB 以内</span>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        aria-label="上传族人画像"
+        style={{ display: 'none' }}
+        onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+      />
+    </div>
+  )
 }
 
 function MemberEditPanel({
@@ -445,7 +519,7 @@ function MemberEditPanel({
     death: member.death ?? '', deathLunar: member.deathLunar ?? '',
     lifespan: member.lifespan ?? '', title: member.title ?? '', bio: member.bio ?? '',
     burial: member.burial ?? '', address: member.address ?? '', phone: member.phone ?? '',
-    deceased: member.deceased,
+    photo: member.photo ?? '', deceased: member.deceased,
   })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -471,6 +545,7 @@ function MemberEditPanel({
       lifespan: form.lifespan || undefined, title: form.title || undefined,
       bio: form.bio || undefined, burial: form.burial || undefined,
       address: form.address || undefined, phone: form.phone || undefined,
+      photo: form.photo || undefined,
       deceased: form.deceased,
     }
     const res = await fetch(`/api/families/${familyId}/members/${member.id}`, {
@@ -498,6 +573,9 @@ function MemberEditPanel({
       <div className="invite-banner" style={{ marginBottom: 16 }}>
         <span>正在编辑 <b>{member.name}</b> 的档案</span>
       </div>
+
+      <SectionTitle>画像</SectionTitle>
+      <PhotoUpload familyId={familyId} value={form.photo} onChange={url => set('photo', url)} />
 
       <SectionTitle>基本信息</SectionTitle>
       <div className="form-grid">
@@ -657,6 +735,8 @@ function MemberDrawer({
   const [mode, setMode] = useState<'view' | 'edit'>('view')
   const canEdit = role === 'owner' || role === 'admin' || role === 'editor'
   const zibei = family.zibei ? [...family.zibei].filter(c => c.trim()) : []
+  const { isPinned, pin, unpin } = usePins(family.id)
+  const pinned = isPinned(member.id)
 
   useEffect(() => setMode('view'), [member.id])
 
@@ -669,6 +749,18 @@ function MemberDrawer({
           <div style={{ flex: 1, fontSize: 12, color: 'var(--ink-3)', letterSpacing: 1, paddingLeft: 10 }}>
             族谱 · 第{cnNum(member.gen)}世{member.branch ? ` · ${member.branch}` : ''}
           </div>
+          <button
+            type="button"
+            className="btn ghost sm"
+            title={pinned ? '取消收藏' : '收藏此人'}
+            onClick={() => pinned
+              ? unpin(member.id)
+              : pin({ id: member.id, name: member.name, gen: member.gen, branch: member.branch })
+            }
+            style={{ color: pinned ? 'var(--accent)' : 'var(--ink-4)' }}
+          >
+            {pinned ? '★' : '☆'}
+          </button>
           {mode === 'view'
             ? canEdit && <button type="button" className="btn primary sm" onClick={() => setMode('edit')}>编辑</button>
             : <button type="button" className="btn ghost sm" onClick={() => setMode('view')}>← 查看</button>
@@ -768,6 +860,17 @@ export default function TreeClient({
   const gens = [...new Set(members.map(m => m.gen))].sort((a, b) => a - b)
   const selectedMember = selectedId ? members.find(m => m.id === selectedId) ?? null : null
 
+  // Open a specific member if ?open= is in the URL (e.g. from sidebar pin click)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const openId = params.get('open')
+    if (openId && members.some(m => m.id === openId)) {
+      setSelectedId(openId)
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const { positions, bounds } = computeLayout(members, relationships)
   const edgePaths = buildEdgePaths(members, relationships, positions)
   const svgW = bounds.w + 60
@@ -845,6 +948,16 @@ export default function TreeClient({
         )}
 
         <div style={{ flex: 1 }} />
+
+        <a
+          href={`/families/${family.id}/print`}
+          target="_blank"
+          rel="noreferrer"
+          className="btn ghost sm"
+          style={{ textDecoration: 'none' }}
+        >
+          印谱
+        </a>
 
         <span style={{ fontSize: 11, color: 'var(--ink-4)', background: 'var(--line-2)', borderRadius: 4, padding: '2px 8px' }}>
           {members.length} 人在册

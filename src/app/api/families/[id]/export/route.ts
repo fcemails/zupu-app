@@ -1,19 +1,19 @@
-import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/permissions'
+import { jsonError } from '@/lib/apiResponse'
 
 type Ctx = { params: Promise<{ id: string }> }
 
 export async function GET(_req: Request, { params }: Ctx) {
   const { id: familyId } = await params
   const session = await getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session) return jsonError('UNAUTHORIZED', 'Unauthorized', 401)
 
   try {
     await requireRole(session.userId, familyId, 'viewer')
   } catch {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return jsonError('FORBIDDEN', 'Forbidden', 403)
   }
 
   const [family, members, relationships, events] = await Promise.all([
@@ -26,7 +26,7 @@ export async function GET(_req: Request, { params }: Ctx) {
     prisma.familyEvent.findMany({ where: { familyId }, orderBy: { year: 'asc' } }),
   ])
 
-  if (!family) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!family) return jsonError('NOT_FOUND', 'Not found', 404)
 
   const payload = {
     exportedAt: new Date().toISOString(),
@@ -48,7 +48,7 @@ export async function GET(_req: Request, { params }: Ctx) {
   }
 
   const filename = `${family.surname}氏${family.tang}_${new Date().toISOString().slice(0, 10)}.json`
-  return new NextResponse(JSON.stringify(payload, null, 2), {
+  return new Response(JSON.stringify(payload, null, 2), {
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
       'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,

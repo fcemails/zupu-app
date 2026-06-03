@@ -109,6 +109,15 @@ export default function SettingsClient({ family, role }: { family: Family; role:
         </div>
 
         <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginBottom: 40 }}>
+          <a
+            href={`/families/${family.id}/print`}
+            target="_blank"
+            rel="noreferrer"
+            className="btn ghost"
+            style={{ textDecoration: 'none' }}
+          >
+            印谱 / 打印
+          </a>
           <button
             type="button"
             className="btn ghost"

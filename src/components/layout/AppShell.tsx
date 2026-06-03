@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { logout } from '@/app/actions/auth'
 import type { SessionPayload } from '@/lib/session'
+import { usePins } from '@/hooks/usePins'
 
 type Family = { id: string; surname: string; tang: string; role: string }
 
@@ -156,6 +157,8 @@ export default function AppShell({
   const currentFamilyId = familyIdMatch?.[1]
   const currentFamily = families.find(f => f.id === currentFamilyId) ?? families[0]
 
+  const { pins, unpin } = usePins(currentFamily?.id ?? '')
+
   const navItems = currentFamily ? [
     { href: `/families/${currentFamily.id}/dashboard`, label: '概览', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
     { href: `/families/${currentFamily.id}/tree`, label: '族谱树', icon: 'M4 6a2 2 0 014 0v1H4V6zm8 0a2 2 0 014 0v1h-4V6zM4 11h16M12 11v10M8 16h8' },
@@ -246,6 +249,40 @@ export default function AppShell({
             {item.label}
           </Link>
         ))}
+
+        {currentFamily && pins.length > 0 && (
+          <>
+            <div className="nav-group" style={{ marginTop: 8 }}>收藏</div>
+            {pins.map(p => (
+              <div
+                key={p.id}
+                className="nav-item"
+                style={{ cursor: 'pointer' }}
+                onClick={() => router.push(`/families/${currentFamily.id}/tree?open=${p.id}`)}
+              >
+                {/* pin icon */}
+                <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s7-7 7-11a7 7 0 10-14 0c0 4 7 11 7 11z M12 10a2 2 0 100-4 2 2 0 000 4z" />
+                </svg>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {p.name}
+                  {p.branch && <span style={{ fontSize: 11, color: 'var(--ink-4)', marginLeft: 4 }}>{p.branch}</span>}
+                </span>
+                <span style={{ fontSize: 10, color: 'var(--ink-4)', flexShrink: 0 }}>第{p.gen}世</span>
+                <button
+                  type="button"
+                  title="取消收藏"
+                  onClick={e => { e.stopPropagation(); unpin(p.id) }}
+                  style={{
+                    background: 'transparent', border: 0, padding: '0 2px',
+                    cursor: 'pointer', color: 'var(--ink-4)', fontSize: 14, lineHeight: 1,
+                    flexShrink: 0,
+                  }}
+                >×</button>
+              </div>
+            ))}
+          </>
+        )}
 
         <div className="nav-group" style={{ marginTop: 8 }}>其他</div>
         <Link href="/explore" className={`nav-item${pathname === '/explore' ? ' active' : ''}`}>

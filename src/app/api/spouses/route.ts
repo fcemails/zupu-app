@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/permissions'
 import { z } from 'zod'
+import { jsonError, jsonOK } from '@/lib/apiResponse'
 
 const CreateSchema = z.object({
   p1Id: z.string().min(1),
@@ -12,33 +12,31 @@ const CreateSchema = z.object({
 
 export async function POST(req: Request) {
   const session = await getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session) return jsonError('UNAUTHORIZED', 'Unauthorized', 401)
 
   const body = await req.json().catch(() => null)
   const parsed = CreateSchema.safeParse(body)
-  if (!parsed.success) return NextResponse.json({ error: '参数错误' }, { status: 400 })
+  if (!parsed.success) return jsonError('INVALID_PARAMS', '参数错误', 400, parsed.error.issues)
 
   const { p1Id, p2Id, label } = parsed.data
-  if (p1Id === p2Id) return NextResponse.json({ error: '不能与自己结为配偶' }, { status: 400 })
+  if (p1Id === p2Id) return jsonError('INVALID_RELATION', '不能与自己结为配偶', 400)
 
-  // Verify both persons exist and belong to the same family the user has access to
   const persons = await prisma.person.findMany({
     where: { id: { in: [p1Id, p2Id] } },
     select: { id: true, familyId: true },
   })
-  if (persons.length !== 2) return NextResponse.json({ error: '人员不存在' }, { status: 404 })
+  if (persons.length !== 2) return jsonError('NOT_FOUND', '人员不存在', 404)
   if (persons[0].familyId !== persons[1].familyId) {
-    return NextResponse.json({ error: '两人不属于同一族谱' }, { status: 400 })
+    return jsonError('INVALID_FAMILY', '两人不属于同一族谱', 400)
   }
 
   const familyId = persons[0].familyId
   try {
     await requireRole(session.userId, familyId, 'editor')
   } catch {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return jsonError('FORBIDDEN', 'Forbidden', 403)
   }
 
-  // Check if relationship already exists (either direction)
   const existing = await prisma.spouse.findFirst({
     where: {
       OR: [
@@ -47,7 +45,7 @@ export async function POST(req: Request) {
       ],
     },
   })
-  if (existing) return NextResponse.json({ error: '配偶关系已存在' }, { status: 409 })
+  if (existing) return jsonError('CONFLICT', '配偶关系已存在', 409)
 
   const spouse = await prisma.spouse.create({
     data: { p1Id, p2Id, label: label || null },
@@ -56,5 +54,5 @@ export async function POST(req: Request) {
     },
   })
 
-  return NextResponse.json({ spouseRecordId: spouse.id, label: spouse.label, ...spouse.p2 }, { status: 201 })
+  return jsonOK({ spouseRecordId: spouse.id, label: spouse.label, ...spouse.p2 }, 201)
 }

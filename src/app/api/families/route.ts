@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { jsonError, jsonOK } from '@/lib/apiResponse'
 
 const CreateSchema = z.object({
   surname: z.string().min(1),
@@ -13,9 +13,14 @@ const CreateSchema = z.object({
   access: z.enum(['public', 'semi', 'private']).default('semi'),
 })
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session) return jsonError('UNAUTHORIZED', 'Unauthorized', 401)
+
+  const { searchParams } = new URL(req.url)
+  const page = Math.max(Number(searchParams.get('page') ?? '1'), 1)
+  const limit = Math.min(Math.max(Number(searchParams.get('limit') ?? '20'), 1), 50)
+  const skip = (page - 1) * limit
 
   const accesses = await prisma.familyAccess.findMany({
     where: { userId: session.userId },
@@ -25,23 +30,29 @@ export async function GET() {
       },
     },
     orderBy: { family: { createdAt: 'asc' } },
+    skip,
+    take: limit,
   })
 
-  return NextResponse.json(accesses.map(a => ({
-    ...a.family,
-    role: a.role,
-    memberCount: a.family._count.members,
-    eventCount: a.family._count.events,
-  })))
+  return jsonOK({
+    page,
+    limit,
+    items: accesses.map(a => ({
+      ...a.family,
+      role: a.role,
+      memberCount: a.family._count.members,
+      eventCount: a.family._count.events,
+    })),
+  })
 }
 
 export async function POST(req: Request) {
   const session = await getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session) return jsonError('UNAUTHORIZED', 'Unauthorized', 401)
 
   const body = await req.json().catch(() => null)
   const parsed = CreateSchema.safeParse(body)
-  if (!parsed.success) return NextResponse.json({ error: '参数错误' }, { status: 400 })
+  if (!parsed.success) return jsonError('INVALID_PARAMS', '参数错误', 400, parsed.error.issues)
 
   const family = await prisma.family.create({
     data: {
@@ -50,5 +61,5 @@ export async function POST(req: Request) {
     },
   })
 
-  return NextResponse.json(family, { status: 201 })
+  return jsonOK(family, 201)
 }

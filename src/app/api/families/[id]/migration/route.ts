@@ -1,21 +1,21 @@
-import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/permissions'
+import { jsonError, jsonOK } from '@/lib/apiResponse'
 
 type Ctx = { params: Promise<{ id: string }> }
 
 export async function GET(_req: Request, { params }: Ctx) {
   const { id: familyId } = await params
   const session = await getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session) return jsonError('UNAUTHORIZED', 'Unauthorized', 401)
 
   try {
     await requireRole(session.userId, familyId, 'viewer')
   } catch {
     const family = await prisma.family.findUnique({ where: { id: familyId } })
     if (!family || family.access === 'private') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return jsonError('FORBIDDEN', 'Forbidden', 403)
     }
   }
 
@@ -35,5 +35,5 @@ export async function GET(_req: Request, { params }: Ctx) {
     parentIds: parentRels.map(r => r.parentId),
   }))
 
-  return NextResponse.json({ members })
+  return jsonOK({ members })
 }

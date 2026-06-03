@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { requireRole, maskSensitive } from '@/lib/permissions'
 import { z } from 'zod'
+import { jsonError, jsonOK } from '@/lib/apiResponse'
 
 const MemberSchema = z.object({
   name: z.string().min(1),
@@ -28,10 +28,15 @@ const MemberSchema = z.object({
 
 type Ctx = { params: Promise<{ id: string }> }
 
-export async function GET(_req: Request, { params }: Ctx) {
+export async function GET(req: Request, { params }: Ctx) {
   const { id: familyId } = await params
   const session = await getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session) return jsonError('UNAUTHORIZED', 'Unauthorized', 401)
+
+  const { searchParams } = new URL(req.url)
+  const page = Math.max(Number(searchParams.get('page') ?? '1'), 1)
+  const limit = Math.min(Math.max(Number(searchParams.get('limit') ?? '50'), 1), 100)
+  const skip = (page - 1) * limit
 
   let role = null
   try {
@@ -39,7 +44,7 @@ export async function GET(_req: Request, { params }: Ctx) {
   } catch {
     const family = await prisma.family.findUnique({ where: { id: familyId } })
     if (!family || family.access === 'private') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return jsonError('FORBIDDEN', 'Forbidden', 403)
     }
   }
 
@@ -52,26 +57,28 @@ export async function GET(_req: Request, { params }: Ctx) {
       spouseRels2: { include: { p1: { select: { id: true, name: true } } } },
     },
     orderBy: [{ gen: 'asc' }, { name: 'asc' }],
+    skip,
+    take: limit,
   })
 
   const masked = members.map(m => maskSensitive(m as unknown as Record<string, unknown>, role, ['burial', 'address', 'phone']))
-  return NextResponse.json(masked)
+  return jsonOK({ page, limit, members: masked })
 }
 
 export async function POST(req: Request, { params }: Ctx) {
   const { id: familyId } = await params
   const session = await getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session) return jsonError('UNAUTHORIZED', 'Unauthorized', 401)
 
   try {
     await requireRole(session.userId, familyId, 'editor')
   } catch {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return jsonError('FORBIDDEN', 'Forbidden', 403)
   }
 
   const body = await req.json().catch(() => null)
   const parsed = MemberSchema.safeParse(body)
-  if (!parsed.success) return NextResponse.json({ error: '参数错误', details: parsed.error.issues }, { status: 400 })
+  if (!parsed.success) return jsonError('INVALID_PARAMS', '参数错误', 400, parsed.error.issues)
 
   const { parentId, ...data } = parsed.data
   const person = await prisma.person.create({
@@ -84,5 +91,5 @@ export async function POST(req: Request, { params }: Ctx) {
     }).catch(() => {})
   }
 
-  return NextResponse.json(person, { status: 201 })
+  return jsonOK(person, 201)
 }

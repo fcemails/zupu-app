@@ -2,9 +2,13 @@ import 'server-only'
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 
-const secret = new TextEncoder().encode(process.env.SESSION_SECRET!)
+if (!process.env.SESSION_SECRET) {
+  throw new Error('Missing SESSION_SECRET environment variable')
+}
+
+const secret = new TextEncoder().encode(process.env.SESSION_SECRET)
 const COOKIE_NAME = 'zupu_session'
-const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000 // 30 days
+const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000 // 30 days in ms
 
 export type SessionPayload = {
   userId: string
@@ -13,10 +17,14 @@ export type SessionPayload = {
 }
 
 export async function encrypt(payload: SessionPayload) {
+  // setExpirationTime accepts numeric seconds or strings like '30d'
   return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('30d')
+    // setExpirationTime expects either a relative string (e.g. '30d') or
+    // an absolute timestamp (seconds since epoch). Use an absolute
+    // expiration timestamp to avoid treating the duration as an epoch.
+    .setExpirationTime(Math.floor(Date.now() / 1000) + Math.floor(SESSION_DURATION / 1000))
     .sign(secret)
 }
 

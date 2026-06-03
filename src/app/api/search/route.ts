@@ -1,21 +1,25 @@
-import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { getUserRole } from '@/lib/permissions'
+import { jsonError, jsonOK } from '@/lib/apiResponse'
 
 export async function GET(req: Request) {
   const session = await getSession()
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session) return jsonError('UNAUTHORIZED', 'Unauthorized', 401)
 
   const { searchParams } = new URL(req.url)
   const q = (searchParams.get('q') ?? '').trim()
   const familyId = searchParams.get('familyId') ?? ''
 
-  if (!q || q.length < 1) return NextResponse.json({ members: [], events: [] })
-  if (!familyId) return NextResponse.json({ error: 'familyId required' }, { status: 400 })
+  if (!q || q.length < 1) return jsonOK({ members: [], events: [] })
+  if (!familyId) return jsonError('MISSING_PARAM', 'familyId required', 400)
 
   const role = await getUserRole(session.userId, familyId)
-  if (!role) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!role) return jsonError('FORBIDDEN', 'Forbidden', 403)
+
+  const page = Math.max(Number(searchParams.get('page') ?? '1'), 1)
+  const limit = Math.min(Math.max(Number(searchParams.get('limit') ?? '10'), 1), 50)
+  const skip = (page - 1) * limit
 
   const [members, events] = await Promise.all([
     prisma.person.findMany({
@@ -31,7 +35,8 @@ export async function GET(req: Request) {
         ],
       },
       select: { id: true, name: true, zi: true, gen: true, branch: true, sex: true, deceased: true },
-      take: 10,
+      take: limit,
+      skip,
     }),
     prisma.familyEvent.findMany({
       where: {
@@ -42,9 +47,10 @@ export async function GET(req: Request) {
         ],
       },
       select: { id: true, title: true, yearText: true, year: true, major: true },
-      take: 6,
+      take: limit,
+      skip,
     }),
   ])
 
-  return NextResponse.json({ members, events })
+  return jsonOK({ page, limit, members, events })
 }

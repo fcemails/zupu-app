@@ -1,8 +1,72 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Role } from '@/lib/permissions'
+import { usePins } from '@/hooks/usePins'
+
+function PhotoUpload({ familyId, value, onChange }: { familyId: string; value: string; onChange: (url: string) => void }) {
+  const [uploading, setUploading] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  async function handleFile(file: File) {
+    setUploading(true)
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('familyId', familyId)
+    const res = await fetch('/api/upload', { method: 'POST', body: fd })
+    setUploading(false)
+    const body = await res.json().catch(() => null)
+    console.debug('upload response', res.status, body)
+    if (res.ok && body) {
+      const { url } = body
+      onChange(url)
+    } else {
+      console.error('Upload failed', res.status, body)
+      alert((body && (body.error?.message || body.message)) || '上传失败')
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+      <div
+        style={{
+          width: 64, height: 80, borderRadius: 4, overflow: 'hidden', flexShrink: 0,
+          border: '1px dashed var(--line-strong)', background: 'var(--line-2)',
+          display: 'grid', placeItems: 'center', cursor: 'pointer',
+        }}
+        onClick={() => inputRef.current?.click()}
+      >
+        {value ? (
+          <img src={value} alt="画像" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <span style={{ fontSize: 11, color: 'var(--ink-4)', textAlign: 'center', lineHeight: 1.4, padding: 4 }}>
+            {uploading ? '上传中…' : '点击上传'}
+          </span>
+        )}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <button type="button" className="btn ghost sm" disabled={uploading} onClick={() => inputRef.current?.click()}>
+          {uploading ? '上传中…' : value ? '更换画像' : '选择图片'}
+        </button>
+        {value && (
+          <button type="button" className="btn ghost sm" style={{ color: 'var(--ink-4)' }} onClick={() => onChange('')}>
+            移除画像
+          </button>
+        )}
+        <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>JPG / PNG / WebP，4 MB 以内</span>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        aria-label="上传族人画像"
+        style={{ display: 'none' }}
+        onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+      />
+    </div>
+  )
+}
 
 type Person = {
   id: string; name: string; zi?: string | null; hao?: string | null; sex: string;
@@ -18,13 +82,13 @@ type Family = { id: string; surname: string; tang: string }
 type MemberFormData = {
   name: string; zi: string; hao: string; sex: string; gen: string; branch: string;
   birth: string; death: string; lifespan: string; title: string; bio: string;
-  burial: string; address: string; phone: string; deceased: boolean;
+  burial: string; address: string; phone: string; photo: string; deceased: boolean;
 }
 
 const EMPTY_FORM: MemberFormData = {
   name: '', zi: '', hao: '', sex: 'M', gen: '', branch: '',
   birth: '', death: '', lifespan: '', title: '', bio: '',
-  burial: '', address: '', phone: '', deceased: false,
+  burial: '', address: '', phone: '', photo: '', deceased: false,
 }
 
 function MemberForm({
@@ -40,7 +104,7 @@ function MemberForm({
       birth: initial.birth ?? '', death: initial.death ?? '', lifespan: initial.lifespan ?? '',
       title: initial.title ?? '', bio: initial.bio ?? '',
       burial: initial.burial ?? '', address: initial.address ?? '', phone: initial.phone ?? '',
-      deceased: initial.deceased,
+      photo: initial.photo ?? '', deceased: initial.deceased,
     } : EMPTY_FORM,
   )
   const [saving, setSaving] = useState(false)
@@ -61,7 +125,7 @@ function MemberForm({
       death: data.death || undefined, lifespan: data.lifespan || undefined,
       title: data.title || undefined, bio: data.bio || undefined,
       burial: data.burial || undefined, address: data.address || undefined,
-      phone: data.phone || undefined,
+      phone: data.phone || undefined, photo: data.photo || undefined,
     }
     const url = initial
       ? `/api/families/${familyId}/members/${initial.id}`
@@ -96,6 +160,11 @@ function MemberForm({
               {error}
             </div>
           )}
+
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--ink-4)', marginBottom: 8 }}>画像</div>
+            <PhotoUpload familyId={familyId} value={data.photo} onChange={url => set('photo', url)} />
+          </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div className="field-input" style={{ gridColumn: '1 / -1' }}>
@@ -193,6 +262,8 @@ function MemberDrawer({
 }) {
   const canEdit = role === 'owner' || role === 'admin' || role === 'editor'
   const canSeeSensitive = role === 'owner' || role === 'admin' || role === 'editor'
+  const { isPinned, pin, unpin } = usePins(familyId)
+  const pinned = isPinned(member.id)
 
   return (
     <>
@@ -201,6 +272,18 @@ function MemberDrawer({
         <div className="head">
           <button type="button" className="btn ghost sm" onClick={onClose}>← 返回</button>
           <span style={{ flex: 1 }} />
+          <button
+            type="button"
+            className="btn ghost sm"
+            title={pinned ? '取消收藏' : '收藏此人'}
+            onClick={() => pinned
+              ? unpin(member.id)
+              : pin({ id: member.id, name: member.name, gen: member.gen, branch: member.branch })
+            }
+            style={{ color: pinned ? 'var(--accent)' : 'var(--ink-4)' }}
+          >
+            {pinned ? '★' : '☆'}
+          </button>
           {canEdit && (
             <button type="button" className="btn sm primary" onClick={() => onEdit(member)}>编辑</button>
           )}
