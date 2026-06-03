@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 const SURNAMES = ['李', '王', '张', '刘', '陈', '杨', '赵', '黄', '周', '吴',
@@ -10,8 +10,10 @@ const STEPS = ['姓氏', '基本信息', '字辈', '始祖', '隐私']
 
 export default function NewFamilyPage() {
   const router = useRouter()
+  const submittingRef = useRef(false)
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; text: string } | null>(null)
   const [data, setData] = useState({
     surname: '', tang: '', region: '', era: '', motto: '', zibei: '',
     access: 'semi' as 'public' | 'semi' | 'private',
@@ -25,7 +27,11 @@ export default function NewFamilyPage() {
   const zibeiChars = data.zibei ? [...data.zibei].filter(c => c.trim()) : []
 
   async function submit() {
+    if (submittingRef.current) return
+    submittingRef.current = true
     setSaving(true)
+    setStatus({ type: 'info', text: '正在创建族谱，请稍候…' })
+
     try {
       const res = await fetch('/api/families', {
         method: 'POST',
@@ -40,10 +46,13 @@ export default function NewFamilyPage() {
           access: data.access,
         }),
       })
-      if (!res.ok) throw new Error('创建失败')
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.error?.message || '创建族谱失败，请重试')
+      }
       const family = await res.json()
+      setStatus({ type: 'success', text: '创建成功，正在跳转…' })
 
-      // create founder if provided
       if (data.founderName) {
         await fetch(`/api/families/${family.id}/members`, {
           method: 'POST',
@@ -59,12 +68,17 @@ export default function NewFamilyPage() {
             title: '始迁祖',
             deceased: true,
           }),
+        }).catch(err => {
+          console.error('Founder create failed:', err)
         })
       }
 
       router.push(`/families/${family.id}/dashboard`)
-    } catch {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '创建失败，请重试'
+      setStatus({ type: 'error', text: message })
       setSaving(false)
+      submittingRef.current = false
     }
   }
 
@@ -272,6 +286,21 @@ export default function NewFamilyPage() {
           </div>
         )}
       </div>
+
+      {status && (
+        <div
+          style={{
+            margin: '18px 0',
+            padding: '12px 16px',
+            borderRadius: 12,
+            background: status.type === 'error' ? '#ffe5e5' : status.type === 'success' ? '#e6ffed' : '#f0f6ff',
+            color: status.type === 'error' ? '#9b1c1c' : status.type === 'success' ? '#1f5d2b' : '#1d4f91',
+            border: status.type === 'error' ? '1px solid #f0c6c6' : status.type === 'success' ? '1px solid #b7deb8' : '1px solid #c8d9f5',
+          }}
+        >
+          {status.text}
+        </div>
+      )}
 
       <div className="cw-foot">
         <button

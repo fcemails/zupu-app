@@ -1,6 +1,7 @@
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { audit } from '@/lib/audit'
+import { logError } from '@/lib/logger'
 import { z } from 'zod'
 import { jsonError, jsonOK } from '@/lib/apiResponse'
 
@@ -62,13 +63,17 @@ export async function POST(req: Request) {
     },
   })
 
-  await audit({
-    userId: session.userId,
-    familyId: family.id,
-    action: 'family.create',
-    target: family.id,
-    details: parsed.data,
-  })
+  try {
+    await audit({
+      userId: session.userId,
+      familyId: family.id,
+      action: 'family.create',
+      target: family.id,
+      details: parsed.data,
+    })
+  } catch (err) {
+    logError(err, { action: 'family.create', familyId: family.id, userId: session.userId })
+  }
 
   return jsonOK(family, 201)
 }

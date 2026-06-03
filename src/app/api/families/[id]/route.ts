@@ -2,6 +2,7 @@ import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/permissions'
 import { audit } from '@/lib/audit'
+import { logError } from '@/lib/logger'
 import { z } from 'zod'
 import { jsonError, jsonOK } from '@/lib/apiResponse'
 
@@ -74,12 +75,18 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   }
 
   await prisma.family.delete({ where: { id } })
-  await audit({
-    userId: session.userId,
-    familyId: id,
-    action: 'family.delete',
-    target: id,
-    details: null,
-  })
+
+  try {
+    await audit({
+      userId: session.userId,
+      familyId: id,
+      action: 'family.delete',
+      target: id,
+      details: null,
+    })
+  } catch (err) {
+    logError(err, { familyId: id, action: 'family.delete' })
+  }
+
   return jsonOK({ ok: true })
 }

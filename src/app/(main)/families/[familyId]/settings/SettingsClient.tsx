@@ -24,6 +24,8 @@ export default function SettingsClient({ family, role }: { family: Family; role:
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [status, setStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   function set(k: keyof typeof data, v: string) {
     setData(prev => ({ ...prev, [k]: v }))
@@ -31,6 +33,7 @@ export default function SettingsClient({ family, role }: { family: Family; role:
 
   async function save() {
     setSaving(true)
+    setStatus(null)
     const res = await fetch(`/api/families/${family.id}`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
@@ -38,16 +41,31 @@ export default function SettingsClient({ family, role }: { family: Family; role:
     })
     if (res.ok) {
       setSaved(true)
+      setStatus({ type: 'success', text: '设置已保存' })
       setTimeout(() => setSaved(false), 2000)
       router.refresh()
+    } else {
+      const json = await res.json().catch(() => null)
+      setStatus({ type: 'error', text: json?.error?.message || '保存失败，请重试' })
     }
     setSaving(false)
   }
 
   async function deleteFamily() {
+    if (deleting) return
     if (!confirm('确认删除该族谱？此操作不可撤销，所有数据将被永久删除。')) return
+
+    setDeleting(true)
+    setStatus(null)
     const res = await fetch(`/api/families/${family.id}`, { method: 'DELETE' })
-    if (res.ok) router.push('/families')
+    if (res.ok) {
+      setStatus({ type: 'success', text: '族谱已删除，正在返回列表…' })
+      setTimeout(() => router.push('/families'), 400)
+    } else {
+      const json = await res.json().catch(() => null)
+      setStatus({ type: 'error', text: json?.error?.message || '删除失败，请重试' })
+      setDeleting(false)
+    }
   }
 
   return (
@@ -85,6 +103,22 @@ export default function SettingsClient({ family, role }: { family: Family; role:
             </button>
           ))}
         </div>
+
+        {status && (
+          <div
+            style={{
+              marginBottom: 22,
+              padding: '14px 16px',
+              borderRadius: 10,
+              background: status.type === 'error' ? '#ffe5e5' : '#e6ffed',
+              color: status.type === 'error' ? '#9b1c1c' : '#1f5d2b',
+              border: status.type === 'error' ? '1px solid #f0c6c6' : '1px solid #b7deb8',
+              fontSize: 14,
+            }}
+          >
+            {status.text}
+          </div>
+        )}
 
         {/* Basic Info Tab */}
         {tab === 'basic' && (
@@ -148,7 +182,9 @@ export default function SettingsClient({ family, role }: { family: Family; role:
                 <p style={{ fontSize: 13, color: 'var(--ink-3)', marginBottom: 16 }}>
                   删除族谱将永久删除所有成员资料、大事记和邀请链接，无法恢复。
                 </p>
-                <button type="button" className="btn danger" onClick={deleteFamily}>删除族谱</button>
+                <button type="button" className="btn danger" onClick={deleteFamily} disabled={deleting}>
+                  {deleting ? '删除中…' : '删除族谱'}
+                </button>
               </div>
             )}
           </>
