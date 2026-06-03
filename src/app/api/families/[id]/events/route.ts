@@ -1,6 +1,7 @@
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/permissions'
+import { audit } from '@/lib/audit'
 import { z } from 'zod'
 import { jsonError, jsonOK } from '@/lib/apiResponse'
 
@@ -52,5 +53,14 @@ export async function POST(req: Request, { params }: Ctx) {
   const event = await prisma.familyEvent.create({
     data: { ...rest, familyId, actors: actors ? JSON.stringify(actors) : null },
   })
+
+  await audit({
+    userId: session.userId,
+    familyId,
+    action: 'event.create',
+    target: event.id,
+    details: { title: rest.title, year: rest.year, actors, major: rest.major },
+  })
+
   return jsonOK(event, 201)
 }

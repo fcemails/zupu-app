@@ -1,6 +1,7 @@
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/permissions'
+import { audit } from '@/lib/audit'
 import { jsonError } from '@/lib/apiResponse'
 
 type Ctx = { params: Promise<{ id: string; accessId: string }> }
@@ -25,5 +26,12 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   }
 
   await prisma.familyAccess.delete({ where: { id: accessId } })
+  await audit({
+    userId: session.userId,
+    familyId,
+    action: 'access.delete',
+    target: accessId,
+    details: { userId: access.userId, role: access.role },
+  })
   return new Response(null, { status: 204 })
 }

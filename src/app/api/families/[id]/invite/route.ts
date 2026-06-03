@@ -1,6 +1,7 @@
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/permissions'
+import { audit } from '@/lib/audit'
 import { randomBytes } from 'crypto'
 import { z } from 'zod'
 import { jsonError, jsonOK } from '@/lib/apiResponse'
@@ -33,6 +34,14 @@ export async function POST(req: Request, { params }: Ctx) {
 
   const invitation = await prisma.invitation.create({
     data: { familyId, token, expiresAt, ...parsed.data },
+  })
+
+  await audit({
+    userId: session.userId,
+    familyId,
+    action: 'invite.create',
+    target: invitation.id,
+    details: { role: parsed.data.role, email: parsed.data.email, message: parsed.data.message, expiresAt },
   })
 
   return jsonOK(invitation, 201)

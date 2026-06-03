@@ -1,5 +1,6 @@
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
+import { audit } from '@/lib/audit'
 import { z } from 'zod'
 import { jsonError, jsonOK } from '@/lib/apiResponse'
 
@@ -59,6 +60,14 @@ export async function POST(req: Request) {
       ...parsed.data,
       accessList: { create: { userId: session.userId, role: 'owner' } },
     },
+  })
+
+  await audit({
+    userId: session.userId,
+    familyId: family.id,
+    action: 'family.create',
+    target: family.id,
+    details: parsed.data,
   })
 
   return jsonOK(family, 201)

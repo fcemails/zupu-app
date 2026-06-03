@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zupu 家谱系统 API 文档</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; margin: 0; padding: 24px; max-width: 940px; }
+    h1, h2, h3 { color: #111; }
+    pre { background: #f7f7f7; padding: 16px; overflow-x: auto; border-radius: 8px; }
+    code { color: #c7254e; background: #f1f1f1; padding: 2px 4px; border-radius: 4px; }
+    a { color: #0366d6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    hr { border: none; border-top: 1px solid #ddd; margin: 32px 0; }
+    ul { padding-left: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Zupu 家谱系统 API 文档</h1>
+  <p>基本访问前缀：<code>http://localhost:3000/api</code><br />生产环境请替换为：<code>https://&lt;your-domain&gt;/api</code></p>
+  <hr />
+  <h2>目录</h2>
+  <ul>
+    <li><a href="#鉴权说明">鉴权说明</a></li>
+    <li><a href="#1-族谱-family">1. 族谱 Family</a></li>
+    <li><a href="#2-成员-members">2. 成员 Members</a></li>
+    <li><a href="#3-配偶-spouse">3. 配偶 Spouse</a></li>
+    <li><a href="#4-事件-events">4. 事件 Events</a></li>
+    <li><a href="#5-审计-audit">5. 审计 Audit</a></li>
+    <li><a href="#6-邀请-invite">6. 邀请 Invite</a></li>
+    <li><a href="#7-权限-access">7. 权限 Access</a></li>
+    <li><a href="#8-导出-export">8. 导出 Export</a></li>
+    <li><a href="#9-迁移-migration">9. 迁移 Migration</a></li>
+    <li><a href="#10-上传-upload">10. 上传 Upload</a></li>
+    <li><a href="#11-搜索-search">11. 搜索 Search</a></li>
+    <li><a href="#调用示例">调用示例</a></li>
+  </ul>
+  <hr />
+  <h2 id="鉴权说明">鉴权说明</h2>
+  <ul>
+    <li>所有 API 都依赖当前用户会话。</li>
+    <li>需要登录后才能访问。</li>
+    <li>某些接口还依赖角色权限：<code>owner</code> / <code>admin</code> / <code>editor</code> / <code>viewer</code>。</li>
+  </ul>
+  <hr />
+  <h2 id="1-族谱-family">1. 族谱 Family</h2>
+  <h3><code>GET /api/families</code></h3>
+  <p>描述：获取当前用户可访问的族谱列表</p>
+  <p>查询参数：</p>
+  <ul>
+    <li><code>page</code>（可选，默认 <code>1</code>）</li>
+    <li><code>limit</code>（可选，默认 <code>20</code>，最大 <code>50</code>）</li>
+  </ul>
+  <p>返回：分页族谱列表</p>
+  <h3><code>POST /api/families</code></h3>
+  <p>描述：新建族谱</p>
+  <p>请求体（JSON）：</p>
+  <ul>
+    <li><code>surname</code> (string, 必填)</li>
+    <li><code>tang</code> (string, 必填)</li>
+    <li><code>region</code> (string, 可选)</li>
+    <li><code>era</code> (string, 可选)</li>
+    <li><code>motto</code> (string, 可选)</li>
+    <li><code>zibei</code> (string, 可选)</li>
+    <li><code>access</code> (<code>public</code>|<code>semi</code>|<code>private</code>, 可选，默认 <code>semi</code>)</li>
+  </ul>
+  <p>返回：创建成功的族谱对象</p>
+  <h3><code>GET /api/families/{id}</code></h3>
+  <p>描述：获取族谱详情</p>
+  <p>返回：族谱信息和成员/事件统计</p>
+  <h3><code>PUT /api/families/{id}</code></h3>
+  <p>描述：更新族谱</p>
+  <p>请求体（JSON）：与 <code>POST /api/families</code> 相同字段，均可选</p>
+  <p>返回：更新后的族谱对象</p>
+  <h3><code>DELETE /api/families/{id}</code></h3>
+  <p>描述：删除族谱</p>
+  <p>返回：<code>{ ok: true }</code></p>
+  <hr />
+  <h2 id="2-成员-members">2. 成员 Members</h2>
+  <h3><code>GET /api/families/{id}/members</code></h3>
+  <p>描述：获取族谱成员列表</p>
+  <p>查询参数：</p>
+  <ul>
+    <li><code>page</code>（默认 <code>1</code>）</li>
+    <li><code>limit</code>（默认 <code>50</code>，最大 <code>100</code>）</li>
+  </ul>
+  <p>返回：成员数组</p>
+  <h3><code>POST /api/families/{id}/members</code></h3>
+  <p>描述：添加族人</p>
+  <p>请求体（JSON）：</p>
+  <ul>
+    <li><code>name</code> (string, 必填)</li>
+    <li><code>gen</code> (number, 必填)</li>
+    <li><code>sex</code> (<code>M</code>|<code>F</code>, 可选，默认 <code>M</code>)</li>
+    <li><code>zi</code>, <code>hao</code>, <code>branch</code>, <code>birth</code>, <code>birthLunar</code>, <code>death</code>, <code>deathLunar</code>, <code>lifespan</code>, <code>title</code>, <code>bio</code>, <code>burial</code>, <code>address</code>, <code>phone</code>, <code>photo</code>（可选）</li>
+    <li><code>deceased</code> (boolean, 可选，默认 <code>false</code>)</li>
+    <li><code>parentId</code> (string, 可选)</li>
+  </ul>
+  <p>返回：新建族人对象</p>
+  <h3><code>PUT /api/families/{id}/members/{personId}</code></h3>
+  <p>描述：更新指定族人</p>
+  <p>请求体（JSON）：可更新字段</p>
+  <p>返回：更新后的族人对象</p>
+  <h3><code>DELETE /api/families/{id}/members/{personId}</code></h3>
+  <p>描述：删除指定族人</p>
+  <p>返回：<code>{ ok: true }</code></p>
+  <hr />
+  <h2 id="3-配偶-spouse">3. 配偶 Spouse</h2>
+  <h3><code>POST /api/spouses</code></h3>
+  <p>描述：创建配偶关系</p>
+  <p>请求体（JSON）：</p>
+  <ul>
+    <li><code>p1Id</code> (string, 必填)</li>
+    <li><code>p2Id</code> (string, 必填)</li>
+    <li><code>label</code> (string, 可选)</li>
+  </ul>
+  <p>返回：创建的配偶关系信息</p>
+  <h3><code>PATCH /api/spouses/{id}</code></h3>
+  <p>描述：更新配偶关系标签</p>
+  <p>请求体（JSON）：</p>
+  <ul>
+    <li><code>label</code> (string 或 <code>null</code>)</li>
+  </ul>
+  <p>返回：更新后的配偶关系对象</p>
+  <h3><code>DELETE /api/spouses/{id}</code></h3>
+  <p>描述：删除配偶关系</p>
+  <p>返回：204 No Content</p>
+  <hr />
+  <h2 id="4-事件-events">4. 事件 Events</h2>
+  <h3><code>GET /api/families/{id}/events</code></h3>
+  <p>描述：获取族谱事件列表</p>
+  <p>返回：事件数组</p>
+  <h3><code>POST /api/families/{id}/events</code></h3>
+  <p>描述：添加事件</p>
+  <p>请求体（JSON）：</p>
+  <ul>
+    <li><code>title</code> (string, 必填)</li>
+    <li><code>year</code> (number, 可选)</li>
+    <li><code>yearText</code> (string, 可选)</li>
+    <li><code>desc</code> (string, 可选)</li>
+    <li><code>actors</code> (string[], 可选)</li>
+    <li><code>major</code> (boolean, 可选，默认 <code>false</code>)</li>
+  </ul>
+  <p>返回：创建的事件对象</p>
+  <hr />
+  <h2 id="5-审计-audit">5. 审计 Audit</h2>
+  <h3><code>GET /api/families/{id}/audit</code></h3>
+  <p>描述：获取族谱审计日志</p>
+  <p>权限：仅 <code>admin</code> 可访问</p>
+  <p>查询参数：</p>
+  <ul>
+    <li><code>page</code>（默认 <code>1</code>）</li>
+    <li><code>limit</code>（默认 <code>50</code>，最大 <code>200</code>）</li>
+  </ul>
+  <p>返回：<code>{ page, limit, total, logs }</code></p>
+  <hr />
+  <h2 id="6-邀请-invite">6. 邀请 Invite</h2>
+  <h3><code>POST /api/families/{id}/invite</code></h3>
+  <p>描述：创建邀请</p>
+  <p>请求体（JSON）：</p>
+  <ul>
+    <li><code>role</code> (<code>admin</code>|<code>editor</code>|<code>viewer</code>, 默认 <code>editor</code>)</li>
+    <li><code>email</code> (string, 可选)</li>
+    <li><code>message</code> (string, 可选)</li>
+  </ul>
+  <p>返回：邀请对象</p>
+  <hr />
+  <h2 id="7-权限-access">7. 权限 Access</h2>
+  <h3><code>DELETE /api/families/{id}/access/{accessId}</code></h3>
+  <p>描述：撤销某人对族谱的访问权限</p>
+  <p>说明：不能删除 <code>owner</code></p>
+  <p>返回：204 No Content</p>
+  <hr />
+  <h2 id="8-导出-export">8. 导出 Export</h2>
+  <h3><code>GET /api/families/{id}/export</code></h3>
+  <p>描述：导出当前族谱为 JSON 文件</p>
+  <p>返回：下载 JSON 文件</p>
+  <hr />
+  <h2 id="9-迁移-migration">9. 迁移 Migration</h2>
+  <h3><code>GET /api/families/{id}/migration</code></h3>
+  <p>描述：获取家谱迁移 / 树结构数据</p>
+  <p>返回：<code>{ members: [...] }</code></p>
+  <hr />
+  <h2 id="10-上传-upload">10. 上传 Upload</h2>
+  <h3><code>POST /api/upload</code></h3>
+  <p>描述：上传图片</p>
+  <p>表单字段：</p>
+  <ul>
+    <li><code>familyId</code></li>
+    <li><code>file</code>（JPG / PNG / WebP / GIF，最大 4 MB）</li>
+  </ul>
+  <p>返回：<code>{ url, familyId }</code></p>
+  <hr />
+  <h2 id="11-搜索-search">11. 搜索 Search</h2>
+  <h3><code>GET /api/search</code></h3>
+  <p>描述：按族谱成员与事件搜索</p>
+  <p>查询参数：</p>
+  <ul>
+    <li><code>q</code> (string, 必填)</li>
+    <li><code>familyId</code> (string, 必填)</li>
+    <li><code>page</code>（可选，默认 <code>1</code>）</li>
+    <li><code>limit</code>（可选，默认 <code>10</code>，最大 <code>50</code>）</li>
+  </ul>
+  <p>返回：<code>{ page, limit, members, events }</code></p>
+  <hr />
+  <h2 id="调用示例">调用示例</h2>
+  <h3>获取族谱列表</h3>
+  <pre><code>curl -X GET "http://localhost:3000/api/families" \
+  -H "Cookie: &lt;session_cookie&gt;"</code></pre>
+  <h3>创建族谱</h3>
+  <pre><code>curl -X POST "http://localhost:3000/api/families" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "surname":"李",
+    "tang":"陇西堂",
+    "region":"蜀眉柳溪",
+    "access":"semi"
+  }'</code></pre>
+  <h3>获取族谱成员</h3>
+  <pre><code>curl -X GET "http://localhost:3000/api/families/fam_longxi/members?page=1&limit=50"</code></pre>
+  <h3>更新族人</h3>
+  <pre><code>curl -X PUT "http://localhost:3000/api/families/fam_longxi/members/p1" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"李永昌","branch":"本支"}'</code></pre>
+  <h3>获取审计日志</h3>
+  <pre><code>curl -X GET "http://localhost:3000/api/families/fam_longxi/audit?page=1&limit=50"</code></pre>
+  <h3>上传图片</h3>
+  <pre><code>curl -X POST "http://localhost:3000/api/upload" \
+  -F "familyId=fam_longxi" \
+  -F "file=@/path/to/photo.jpg"</code></pre>
+  <hr />
+  <p>如果需要，我还可以继续把这份文档写入项目 README 或添加到项目首页导航中。</p>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { requireRole, maskSensitive } from '@/lib/permissions'
+import { audit } from '@/lib/audit'
 import { z } from 'zod'
 import { jsonError, jsonOK } from '@/lib/apiResponse'
 
@@ -89,6 +90,18 @@ export async function POST(req: Request, { params }: Ctx) {
     await prisma.relationship.create({
       data: { parentId, childId: person.id },
     }).catch(() => {})
+  }
+
+  try {
+    await audit({
+      userId: session.userId,
+      familyId,
+      action: 'member.create',
+      target: person.id,
+      details: { ...data, parentId },
+    })
+  } catch (err) {
+    console.error('Member create audit failed:', err)
   }
 
   return jsonOK(person, 201)

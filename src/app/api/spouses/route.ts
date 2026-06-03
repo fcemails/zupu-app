@@ -1,6 +1,7 @@
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/permissions'
+import { audit } from '@/lib/audit'
 import { z } from 'zod'
 import { jsonError, jsonOK } from '@/lib/apiResponse'
 
@@ -52,6 +53,14 @@ export async function POST(req: Request) {
     include: {
       p2: { select: { id: true, name: true, zi: true, sex: true, gen: true } },
     },
+  })
+
+  await audit({
+    userId: session.userId,
+    familyId,
+    action: 'spouse.create',
+    target: spouse.id,
+    details: { p1Id, p2Id, label: label || null },
   })
 
   return jsonOK({ spouseRecordId: spouse.id, label: spouse.label, ...spouse.p2 }, 201)

@@ -1,6 +1,7 @@
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/permissions'
+import { audit } from '@/lib/audit'
 import { jsonError, jsonOK } from '@/lib/apiResponse'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -23,6 +24,13 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   }
 
   await prisma.spouse.delete({ where: { id } })
+  await audit({
+    userId: session.userId,
+    familyId: spouse.p1.familyId,
+    action: 'spouse.delete',
+    target: id,
+    details: { p1Id: spouse.p1.familyId, p2Id: spouse.p2Id },
+  })
   return new Response(null, { status: 204 })
 }
 
@@ -48,5 +56,14 @@ export async function PATCH(req: Request, { params }: Ctx) {
     where: { id },
     data: { label: label ?? null },
   })
+
+  await audit({
+    userId: session.userId,
+    familyId: spouse.p1.familyId,
+    action: 'spouse.update',
+    target: id,
+    details: { label: label ?? null },
+  })
+
   return jsonOK(updated)
 }

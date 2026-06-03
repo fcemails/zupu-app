@@ -1,6 +1,7 @@
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { requireRole } from '@/lib/permissions'
+import { audit } from '@/lib/audit'
 import { z } from 'zod'
 import { jsonError, jsonOK } from '@/lib/apiResponse'
 
@@ -51,6 +52,13 @@ export async function PUT(req: Request, { params }: Ctx) {
   if (!parsed.success) return jsonError('INVALID_PARAMS', '参数错误', 400)
 
   const family = await prisma.family.update({ where: { id }, data: parsed.data })
+  await audit({
+    userId: session.userId,
+    familyId: id,
+    action: 'family.update',
+    target: id,
+    details: parsed.data,
+  })
   return jsonOK(family)
 }
 
@@ -66,5 +74,12 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   }
 
   await prisma.family.delete({ where: { id } })
+  await audit({
+    userId: session.userId,
+    familyId: id,
+    action: 'family.delete',
+    target: id,
+    details: null,
+  })
   return jsonOK({ ok: true })
 }

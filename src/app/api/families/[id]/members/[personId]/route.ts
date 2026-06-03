@@ -1,6 +1,7 @@
 import { getSession } from '@/lib/session'
 import { prisma } from '@/lib/prisma'
 import { requireRole, maskSensitive } from '@/lib/permissions'
+import { audit } from '@/lib/audit'
 import { z } from 'zod'
 import { jsonError, jsonOK } from '@/lib/apiResponse'
 
@@ -44,10 +45,31 @@ export async function PUT(req: Request, { params }: Ctx) {
   const parsed = UpdateSchema.safeParse(body)
   if (!parsed.success) return jsonError('INVALID_PARAMS', '参数错误', 400, parsed.error.issues)
 
-  const person = await prisma.person.update({
+  const updateResult = await prisma.person.updateMany({
     where: { id: personId, familyId },
     data: parsed.data,
   })
+
+  if (updateResult.count === 0) {
+    return jsonError('NOT_FOUND', '族人不存在或不属于该族谱', 404)
+  }
+
+  const person = await prisma.person.findUnique({ where: { id: personId } })
+  if (!person) {
+    return jsonError('NOT_FOUND', '族人不存在', 404)
+  }
+
+  try {
+    await audit({
+      userId: session.userId,
+      familyId,
+      action: 'member.update',
+      target: personId,
+      details: parsed.data,
+    })
+  } catch (err) {
+    console.error('Member update audit failed:', err)
+  }
 
   return jsonOK(maskSensitive(person as unknown as Record<string, unknown>, role, ['burial', 'address', 'phone']))
 }
@@ -64,5 +86,12 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   }
 
   await prisma.person.delete({ where: { id: personId, familyId } })
+  await audit({
+    userId: session.userId,
+    familyId,
+    action: 'member.delete',
+    target: personId,
+    details: null,
+  })
   return jsonOK({ ok: true })
 }

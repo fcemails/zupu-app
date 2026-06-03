@@ -1,7 +1,7 @@
 import { getSession } from '@/lib/session'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
-import { jsonError, jsonOK } from '@/lib/apiResponse'
+import { jsonError, jsonOK, jsonServerError } from '@/lib/apiResponse'
 import { requireRole } from '@/lib/permissions'
 
 const MAX_SIZE = 4 * 1024 * 1024 // 4 MB

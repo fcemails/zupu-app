@@ -4,7 +4,18 @@ import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import path from 'path'
 import bcrypt from 'bcryptjs'
 
-const dbPath = path.resolve(process.cwd(), 'prisma/dev.db')
+const dbUrl = process.env.DATABASE_URL
+const dbPath = (() => {
+  if (!dbUrl?.startsWith('file:')) {
+    return path.resolve(process.cwd(), 'dev.db')
+  }
+
+  const sqlitePath = dbUrl.slice('file:'.length)
+  return path.isAbsolute(sqlitePath)
+    ? sqlitePath
+    : path.resolve(process.cwd(), sqlitePath)
+})()
+
 const adapter = new PrismaBetterSqlite3({ url: dbPath })
 const prisma = new PrismaClient({ adapter })
 

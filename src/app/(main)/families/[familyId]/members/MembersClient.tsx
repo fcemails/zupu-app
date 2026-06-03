@@ -135,10 +135,13 @@ function MemberForm({
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     })
+    const result = await res.json().catch(() => null)
     setSaving(false)
-    if (!res.ok) { setError('保存失败，请重试'); return }
-    const saved = await res.json()
-    onSaved({ ...saved, parentRels: initial?.parentRels ?? [], childRels: initial?.childRels ?? [] })
+    if (!res.ok) {
+      setError(result?.error?.message || '保存失败，请重试')
+      return
+    }
+    onSaved({ ...result, parentRels: initial?.parentRels ?? [], childRels: initial?.childRels ?? [] })
   }
 
   return (

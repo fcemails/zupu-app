@@ -16,6 +16,7 @@ model User {
   avatar       String?
   createdAt    DateTime       @default(now())
   familyAccess FamilyAccess[]
+  auditLogs    AuditLog[]
 }
 
 model Family {
@@ -33,6 +34,7 @@ model Family {
   events      FamilyEvent[]
   accessList  FamilyAccess[]
   invitations Invitation[]
+  auditLogs   AuditLog[]
 }
 
 model FamilyAccess {
@@ -124,4 +126,17 @@ model Invitation {
   usedAt    DateTime?
   createdAt DateTime  @default(now())
   family    Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  userId    String
+  familyId  String
+  action    String
+  target    String?
+  details   Json?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family Family @relation(fields: [familyId], references: [id], onDelete: Cascade)
 }
