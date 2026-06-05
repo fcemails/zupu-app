@@ -12,7 +12,7 @@ services:
     env_file:
       - .env.production
     volumes:
-      - zupu_db:/data                    # SQLite 数据库文件持久化
+      - /www/zp/zupu-app/data:/data                 # SQLite 数据库文件持久化（宿主机目录）
       - zupu_uploads:/app/public/uploads # 用户上传图片持久化
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
@@ -22,5 +22,4 @@ services:
       start_period: 20s
 
 volumes:
-  zupu_db:
   zupu_uploads:
