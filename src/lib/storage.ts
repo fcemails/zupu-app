@@ -23,7 +23,7 @@ export async function uploadFile(options: {
     return uploadToS3({ key, data: options.data, contentType: options.contentType })
   }
 
-  return uploadToLocal({ key, data: options.data, contentType: options.contentType })
+  return uploadToLocal({ key, data: options.data })
 }
 
 function sanitizeFileName(fileName: string) {
