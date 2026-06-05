@@ -54,9 +54,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/public           ./public
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
 # Prisma CLI 完整依赖（migrate deploy 需要 @prisma/* 全部子包）
+# 注意：不复制 .bin/prisma（符号链接被 COPY 展开后 __dirname 错误导致 .wasm 找不到）
+# entrypoint.sh 直接调用 node node_modules/prisma/build/index.js
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@prisma  ./node_modules/@prisma
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/prisma   ./node_modules/prisma
-COPY --from=deps --chown=nextjs:nodejs /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 
 # 启动脚本
 COPY --chown=nextjs:nodejs entrypoint.sh ./
