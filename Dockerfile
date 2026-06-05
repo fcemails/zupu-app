@@ -50,8 +50,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static     ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public           ./public
 
-# Prisma schema 与迁移文件（entrypoint 执行 migrate deploy 需要）
+# Prisma schema、迁移文件与配置（entrypoint 执行 migrate deploy 需要）
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
 
 # 完整 node_modules（含 Prisma CLI 所有传递依赖与 better-sqlite3 原生模块）
 # standalone 的 nft 子集不含 Prisma CLI 依赖，直接用 deps 阶段全量覆盖
