@@ -1,3 +1,4 @@
+import type { Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/prisma'
 
 export type AuditEntry = {
@@ -9,26 +10,28 @@ export type AuditEntry = {
 }
 
 function sanitizeJson(value: unknown): unknown {
-  if (value === undefined) return null
-  if (value === null) return null
   if (Array.isArray(value)) return value.map(sanitizeJson)
   if (typeof value === 'object' && value !== null) {
     return Object.fromEntries(
-      Object.entries(value).filter(([, v]) => v !== undefined).map(([k, v]) => [k, sanitizeJson(v)]),
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, sanitizeJson(v)]),
     )
   }
   return value
 }
 
 export async function audit(entry: AuditEntry) {
-  const details = entry.details === undefined ? null : sanitizeJson(entry.details)
+  const details = entry.details == null
+    ? undefined
+    : sanitizeJson(entry.details) as Prisma.InputJsonValue
   return prisma.auditLog.create({
     data: {
       userId: entry.userId,
       familyId: entry.familyId,
       action: entry.action,
       target: entry.target ?? null,
-      details: details ?? null,
+      details,
     },
   })
 }

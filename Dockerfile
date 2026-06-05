@@ -1,8 +1,6 @@
 # ════════════════════════════════════════════════════════════════
 # Stage 1 – deps
-#   Install all node_modules including native module compilation.
-#   Kept separate so build tools (gcc/g++/python3) stay out of the
-#   final image while the compiled better-sqlite3 binary is reused.
+#   单独安装依赖，保留编译工具在此阶段，不污染最终镜像。
 # ════════════════════════════════════════════════════════════════
 FROM node:22-alpine AS deps
 WORKDIR /app
@@ -14,8 +12,7 @@ RUN npm ci
 
 # ════════════════════════════════════════════════════════════════
 # Stage 2 – builder
-#   Generate the Prisma client and produce a Next.js standalone
-#   build (output: "standalone" must be set in next.config.ts).
+#   生成 Prisma 客户端，构建 Next.js standalone 产物。
 # ════════════════════════════════════════════════════════════════
 FROM node:22-alpine AS builder
 WORKDIR /app
@@ -32,10 +29,7 @@ RUN npm run build
 
 # ════════════════════════════════════════════════════════════════
 # Stage 3 – runner
-#   Minimal Alpine image. Contains only:
-#     - Next.js standalone server + static assets
-#     - Prisma CLI (for db push / migrate deploy on startup)
-#     - better-sqlite3 native binary (traced by standalone output)
+#   最小化运行镜像，仅包含 standalone 产物与 Prisma CLI。
 # ════════════════════════════════════════════════════════════════
 FROM node:22-alpine AS runner
 WORKDIR /app
@@ -47,32 +41,28 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
 
-# Non-root user for security
+# 非 root 用户
 RUN addgroup --system --gid 1001 nodejs \
  && adduser  --system --uid 1001 nextjs
 
-# ── Next.js standalone output ─────────────────────────────────────
+# Next.js standalone 产物
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static     ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public           ./public
 
-# ── Prisma schema + migrations ────────────────────────────────────
-# The entrypoint uses these to initialise / migrate the database.
+# Prisma schema 与迁移文件（entrypoint 执行 migrate deploy 需要）
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
-# ── Prisma CLI packages ───────────────────────────────────────────
-# The standalone tracer (nft) tracks only runtime JS imports, not the
-# prisma executable. Copy the CLI and its engines explicitly so the
-# entrypoint can run `prisma migrate deploy` / `prisma db push`.
-COPY --from=deps --chown=nextjs:nodejs /app/node_modules/prisma           ./node_modules/prisma
-COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@prisma/engines  ./node_modules/@prisma/engines
-COPY --from=deps --chown=nextjs:nodejs /app/node_modules/.bin/prisma      ./node_modules/.bin/prisma
+# Prisma CLI（仅用于 migrate deploy，不含 query engine）
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/prisma          ./node_modules/prisma
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@prisma/engines ./node_modules/@prisma/engines
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/.bin/prisma     ./node_modules/.bin/prisma
 
-# ── Startup script ────────────────────────────────────────────────
+# 启动脚本
 COPY --chown=nextjs:nodejs entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
-# ── Persistent data directories ───────────────────────────────────
+# 数据与上传目录
 RUN mkdir -p /data /app/public/uploads \
  && chown -R nextjs:nodejs /data /app/public/uploads
 

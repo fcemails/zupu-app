@@ -2,18 +2,13 @@ import { PrismaClient } from '@/generated/prisma/client'
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
 import path from 'path'
 
-// In production, DATABASE_URL=file:/data/zupu.db (absolute) overrides the dev default.
-// For dev, relative file: URLs resolve relative to the repo root so file:./dev.db works.
+// Prisma CLI resolves relative file: URLs from the schema.prisma directory (prisma/).
+// The runtime must use the same base so both point to the same database file.
 const url = process.env.DATABASE_URL
 const dbPath = (() => {
-  if (!url?.startsWith('file:')) {
-    return path.resolve(process.cwd(), 'dev.db')
-  }
-
-  const sqlitePath = url.slice('file:'.length)
-  return path.isAbsolute(sqlitePath)
-    ? sqlitePath
-    : path.resolve(process.cwd(), sqlitePath)
+  const filePath = url?.startsWith('file:') ? url.slice('file:'.length) : 'dev.db'
+  if (path.isAbsolute(filePath)) return filePath
+  return path.resolve(process.cwd(), 'prisma', filePath)
 })()
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }

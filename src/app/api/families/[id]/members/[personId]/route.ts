@@ -86,12 +86,15 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   }
 
   await prisma.person.delete({ where: { id: personId, familyId } })
-  await audit({
-    userId: session.userId,
-    familyId,
-    action: 'member.delete',
-    target: personId,
-    details: null,
-  })
+  try {
+    await audit({
+      userId: session.userId,
+      familyId,
+      action: 'member.delete',
+      target: personId,
+    })
+  } catch (err) {
+    console.error('Member delete audit failed:', err)
+  }
   return jsonOK({ ok: true })
 }
