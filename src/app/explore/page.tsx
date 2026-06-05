@@ -1,9 +1,11 @@
 import { prisma } from '@/lib/prisma'
+import { getSession } from '@/lib/session'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 
 export default async function ExplorePage() {
+  const session = await getSession()
   const families = await prisma.family.findMany({
     where: { access: { in: ['public', 'semi'] } },
     include: {
@@ -24,7 +26,9 @@ export default async function ExplorePage() {
           </div>
         </div>
         <div style={{ flex: 1 }} />
-        <Link href="/login" className="btn primary sm">登录 / 注册</Link>
+        {session
+          ? <Link href="/families" className="btn primary sm">我的族谱</Link>
+          : <Link href="/login" className="btn primary sm">登录 / 注册</Link>}
       </header>
 
       <div className="explore-hero">
@@ -75,7 +79,10 @@ export default async function ExplorePage() {
                 <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>
                   {owner ? `谱主：${owner.name}` : ''}
                 </span>
-                <Link href="/login" className="fam-link">进入查看 →</Link>
+                <Link
+                  href={`/explore/${f.id}`}
+                  className="fam-link"
+                >进入查看 →</Link>
               </div>
             </div>
           )
@@ -83,7 +90,9 @@ export default async function ExplorePage() {
         {families.length === 0 && (
           <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '60px 0', color: 'var(--ink-3)' }}>
             暂无公开族谱，
-            <Link href="/login" style={{ color: 'var(--accent)' }}>登录后创建您的族谱</Link>
+            <Link href={session ? '/families/new' : '/login'} style={{ color: 'var(--accent)' }}>
+              {session ? '立即创建您的族谱' : '登录后创建您的族谱'}
+            </Link>
           </div>
         )}
       </div>

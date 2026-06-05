@@ -73,7 +73,8 @@ export default function NewFamilyPage() {
         })
       }
 
-      router.push(`/families/${family.id}/dashboard`)
+      // Hard navigation so the (main) layout server component re-fetches families
+      window.location.href = `/families/${family.id}/dashboard`
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '创建失败，请重试'
       setStatus({ type: 'error', text: message })
