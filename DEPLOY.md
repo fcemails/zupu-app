@@ -175,7 +175,28 @@ MIGRATIONS_DIR="./prisma/migrations"
 
 if [ -d "$MIGRATIONS_DIR" ] && [ "$(ls -A "$MIGRATIONS_DIR" 2>/dev/null)" ]; then
   echo "[zupu] running prisma migrate deploy..."
-  node_modules/.bin/prisma migrate deploy --schema "$SCHEMA"
+
+  set +e
+  OUTPUT=$(node_modules/.bin/prisma migrate deploy --schema "$SCHEMA" 2>&1)
+  EXIT_CODE=$?
+  set -e
+
+  echo "$OUTPUT"
+
+  if [ $EXIT_CODE -ne 0 ]; then
+    if echo "$OUTPUT" | grep -q "P3005"; then
+      echo "[zupu] existing schema detected (P3005), baselining all migrations..."
+      for dir in "$MIGRATIONS_DIR"/*/; do
+        name=$(basename "$dir")
+        echo "[zupu] marking as applied: $name"
+        node_modules/.bin/prisma migrate resolve --applied "$name" --schema "$SCHEMA"
+      done
+      echo "[zupu] retrying prisma migrate deploy..."
+      node_modules/.bin/prisma migrate deploy --schema "$SCHEMA"
+    else
+      exit $EXIT_CODE
+    fi
+  fi
 else
   echo "[zupu] no migration files found, running prisma db push..."
   node_modules/.bin/prisma db push --schema "$SCHEMA" --skip-generate
@@ -185,7 +206,9 @@ echo "[zupu] starting server..."
 exec node server.js
 ```
 
-> **说明**：脚本在容器启动时自动执行数据库迁移，有迁移文件则用 `migrate deploy`，否则用 `db push` 初始化表结构。
+> **说明**：
+> - 有迁移文件时用 `migrate deploy`；无迁移文件时用 `db push` 初始化表结构。
+> - 若检测到 P3005（已有 schema 但无迁移历史，通常是从 `db push` 开发环境迁移过来的数据库），自动 baseline 所有迁移后重试。
 
 ---
 
