@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:ci": "env -i PATH=\"$PATH\" HOME=\"$HOME\" NODE_ENV=production next build",
     "start": "next start",
     "lint": "eslint",
     "seed": "npx tsx prisma/seed.ts"
