@@ -1,24 +1,48 @@
 'use client'
 
-import { useActionState, useEffect, useState } from 'react'
+import { useState, useRef } from 'react'
 import Link from 'next/link'
-import { login, register } from '@/app/actions/auth'
-import type { AuthState } from '@/app/actions/auth'
 
 export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'register'>('login')
-  const [loginState, loginAction, loginPending] = useActionState<AuthState, FormData>(login, undefined)
-  const [regState, regAction, regPending] = useActionState<AuthState, FormData>(register, undefined)
+  const [error, setError] = useState<string>()
+  const [pending, setPending] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
 
-  useEffect(() => {
-    const dest = loginState?.redirectTo ?? regState?.redirectTo
-    // Use hard navigation so the browser makes a fresh HTTP request after login.
-    // router.push() triggers a client-side RSC navigation which requires the
-    // (main) layout's AppShell chunk to already be loaded — on a hard navigation
-    // directly to /login that chunk hasn't been fetched yet, causing "This page
-    // couldn't load" in production. window.location.href bypasses all of that.
-    if (dest) window.location.href = dest
-  }, [loginState, regState])
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError(undefined)
+    setPending(true)
+
+    const fd = new FormData(e.currentTarget)
+    const body: Record<string, string> = {}
+    fd.forEach((v, k) => { body[k] = v as string })
+
+    try {
+      const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register'
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        credentials: 'same-origin',
+      })
+
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        setError(data?.error?.message ?? '操作失败，请重试')
+        setPending(false)
+        return
+      }
+
+      // Hard navigation: ensures the (main) layout server component
+      // re-renders fresh with the new session cookie.
+      window.location.href = '/families'
+    } catch {
+      setError('网络错误，请检查连接后重试')
+      setPending(false)
+    }
+  }
 
   return (
     <div className="auth-shell">
@@ -74,8 +98,8 @@ export default function LoginPage() {
 
         <div className="auth-card">
           <div className="auth-tabs">
-            <button className={mode === 'login' ? 'on' : ''} onClick={() => setMode('login')} type="button">登 录</button>
-            <button className={mode === 'register' ? 'on' : ''} onClick={() => setMode('register')} type="button">注 册</button>
+            <button className={mode === 'login' ? 'on' : ''} onClick={() => { setMode('login'); setError(undefined) }} type="button">登 录</button>
+            <button className={mode === 'register' ? 'on' : ''} onClick={() => { setMode('register'); setError(undefined) }} type="button">注 册</button>
             <div className="auth-tabs-thumb" style={{ left: mode === 'login' ? 4 : '50%' }} />
           </div>
 
@@ -83,7 +107,7 @@ export default function LoginPage() {
             <>
               <h2 className="auth-h2">欢 迎 回 来</h2>
               <div className="auth-sub">请使用邮箱登录账户</div>
-              <form action={loginAction}>
+              <form ref={formRef} onSubmit={handleSubmit}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div className="auth-input">
                     <input name="email" type="email" placeholder="邮箱地址" autoComplete="email" required />
@@ -92,20 +116,20 @@ export default function LoginPage() {
                     <input name="password" type="password" placeholder="密码" autoComplete="current-password" required />
                   </div>
                 </div>
-                {loginState?.error && <div className="auth-err">{loginState.error}</div>}
-                <button type="submit" className="auth-submit" disabled={loginPending}>
-                  {loginPending ? '登 录 中…' : '登 录'}
+                {error && <div className="auth-err">{error}</div>}
+                <button type="submit" className="auth-submit" disabled={pending}>
+                  {pending ? '登 录 中…' : '登 录'}
                 </button>
               </form>
               <div className="auth-terms">
-                还没有账号？<span onClick={() => setMode('register')}>立即注册</span>
+                还没有账号？<span onClick={() => { setMode('register'); setError(undefined) }}>立即注册</span>
               </div>
             </>
           ) : (
             <>
               <h2 className="auth-h2">开 启 您 的 族 谱</h2>
               <div className="auth-sub">注册后即可创建您自己的家族族谱</div>
-              <form action={regAction}>
+              <form onSubmit={handleSubmit}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div className="auth-input">
                     <input name="name" type="text" placeholder="您的姓名" autoComplete="name" required />
@@ -114,16 +138,16 @@ export default function LoginPage() {
                     <input name="email" type="email" placeholder="邮箱地址" autoComplete="email" required />
                   </div>
                   <div className="auth-input">
-                    <input name="password" type="password" placeholder="密码（至少8位）" autoComplete="new-password" required />
+                    <input name="password" type="password" placeholder="密码（至少8位）" autoComplete="new-password" required minLength={8} />
                   </div>
                 </div>
-                {regState?.error && <div className="auth-err">{regState.error}</div>}
-                <button type="submit" className="auth-submit" disabled={regPending}>
-                  {regPending ? '注 册 中…' : '注 册'}
+                {error && <div className="auth-err">{error}</div>}
+                <button type="submit" className="auth-submit" disabled={pending}>
+                  {pending ? '注 册 中…' : '注 册'}
                 </button>
               </form>
               <div className="auth-terms">
-                已有账号？<span onClick={() => setMode('login')}>立即登录</span>
+                已有账号？<span onClick={() => { setMode('login'); setError(undefined) }}>立即登录</span>
               </div>
             </>
           )}
