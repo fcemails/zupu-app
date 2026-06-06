@@ -4,6 +4,7 @@ import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
+// redirect is still used by logout()
 import { createSession, deleteSession } from '@/lib/session'
 
 const LoginSchema = z.object({
@@ -17,7 +18,7 @@ const RegisterSchema = z.object({
   password: z.string().min(8),
 })
 
-export type AuthState = { error?: string } | undefined
+export type AuthState = { error?: string; redirectTo?: string } | undefined
 
 export async function login(state: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = LoginSchema.safeParse({
@@ -37,7 +38,13 @@ export async function login(state: AuthState, formData: FormData): Promise<AuthS
     return { error: '邮箱或密码错误' }
   }
   await createSession(user.id, user.name)
-  redirect('/families')
+  // Return redirect target instead of calling redirect() directly.
+  // redirect() inside a Server Action in production (standalone) has a race
+  // condition where the Set-Cookie header may not be committed before the RSC
+  // navigation request fires, causing "This page couldn't load". Letting the
+  // client component call router.push() after the action settles guarantees
+  // the cookie is stored first.
+  return { redirectTo: '/families' }
 }
 
 export async function register(state: AuthState, formData: FormData): Promise<AuthState> {
@@ -58,7 +65,7 @@ export async function register(state: AuthState, formData: FormData): Promise<Au
   const hashed = await bcrypt.hash(password, 12)
   const user = await prisma.user.create({ data: { name, email, password: hashed } })
   await createSession(user.id, user.name)
-  redirect('/families')
+  return { redirectTo: '/families' }
 }
 
 export async function logout() {

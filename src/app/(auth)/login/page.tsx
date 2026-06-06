@@ -1,15 +1,21 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { login, register } from '@/app/actions/auth'
 import type { AuthState } from '@/app/actions/auth'
-import { useState } from 'react'
 
 export default function LoginPage() {
+  const router = useRouter()
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [loginState, loginAction, loginPending] = useActionState<AuthState, FormData>(login, undefined)
   const [regState, regAction, regPending] = useActionState<AuthState, FormData>(register, undefined)
+
+  useEffect(() => {
+    const dest = loginState?.redirectTo ?? regState?.redirectTo
+    if (dest) router.push(dest)
+  }, [loginState, regState, router])
 
   return (
     <div className="auth-shell">
