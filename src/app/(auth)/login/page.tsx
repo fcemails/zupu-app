@@ -1,5 +1,12 @@
 'use client'
 
+// Prevent Next.js from pre-rendering and caching this page.
+// Without this, Next.js statically pre-renders the login page shell and serves
+// it with s-maxage=31536000. After a new deployment the cached HTML still
+// references old build chunk hashes (404s), JS fails to load, and the form
+// falls back to a plain POST that Next.js cannot process → "This page couldn't load".
+export const dynamic = 'force-dynamic'
+
 import { useState, useRef } from 'react'
 import Link from 'next/link'
 
