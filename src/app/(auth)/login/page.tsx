@@ -2,20 +2,23 @@
 
 import { useActionState, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { login, register } from '@/app/actions/auth'
 import type { AuthState } from '@/app/actions/auth'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [loginState, loginAction, loginPending] = useActionState<AuthState, FormData>(login, undefined)
   const [regState, regAction, regPending] = useActionState<AuthState, FormData>(register, undefined)
 
   useEffect(() => {
     const dest = loginState?.redirectTo ?? regState?.redirectTo
-    if (dest) router.push(dest)
-  }, [loginState, regState, router])
+    // Use hard navigation so the browser makes a fresh HTTP request after login.
+    // router.push() triggers a client-side RSC navigation which requires the
+    // (main) layout's AppShell chunk to already be loaded — on a hard navigation
+    // directly to /login that chunk hasn't been fetched yet, causing "This page
+    // couldn't load" in production. window.location.href bypasses all of that.
+    if (dest) window.location.href = dest
+  }, [loginState, regState])
 
   return (
     <div className="auth-shell">
